@@ -1,8 +1,23 @@
 import React from "react";
 import Link from "next/link";
+import { Metadata } from "next";
 import { ArrowLeft, Calendar, Clock, BookOpen, Settings, ShieldCheck } from "lucide-react";
 import SchemaMarkup from "@/components/seo/SchemaMarkup";
 import AdSlot from "@/components/layout/AdSlot";
+
+export const metadata: Metadata = {
+  title: "How to Enable Camera & Microphone Permissions in Browsers",
+  description: "Step-by-step browser guides to allow camera and mic permissions on Google Chrome, Apple Safari, Firefox, and Microsoft Edge.",
+  alternates: {
+    canonical: "https://cammictest.com/blog/how-to-enable-camera-mic",
+  },
+  openGraph: {
+    title: "How to Enable Camera & Microphone Permissions in Browsers",
+    description: "Learn how to allow camera and microphone inputs on major web browsers (Chrome, Safari, Firefox, Edge) to run hardware test checks.",
+    url: "https://cammictest.com/blog/how-to-enable-camera-mic",
+  }
+};
+
 
 export default function BrowserPermissionsArticle() {
   const articleSchema = {

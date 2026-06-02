@@ -1,8 +1,23 @@
 import React from "react";
 import Link from "next/link";
+import { Metadata } from "next";
 import { BookOpen, Calendar, Clock, ArrowRight } from "lucide-react";
 import SchemaMarkup from "@/components/seo/SchemaMarkup";
 import AdSlot from "@/components/layout/AdSlot";
+
+export const metadata: Metadata = {
+  title: "Diagnostics & Troubleshooting Blog | CamMicTest.com",
+  description: "Read expert guides and tutorials to fix webcam black screens, configure browser permissions, resolve microphone humming, and run speed tests.",
+  alternates: {
+    canonical: "https://cammictest.com/blog",
+  },
+  openGraph: {
+    title: "Diagnostics & Troubleshooting Blog | CamMicTest.com",
+    description: "Expert hardware troubleshooting tutorials and device guides from the engineering team at CamMicTest.com.",
+    url: "https://cammictest.com/blog",
+  }
+};
+
 
 interface ArticlePreview {
   slug: string;

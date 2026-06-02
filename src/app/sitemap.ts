@@ -10,7 +10,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/speaker-test",
     "/speed-test",
     "/device-check",
-    "/results",
     "/faq",
     "/blog",
     "/blog/why-is-my-webcam-black",

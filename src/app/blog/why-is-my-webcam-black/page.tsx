@@ -1,8 +1,23 @@
 import React from "react";
 import Link from "next/link";
+import { Metadata } from "next";
 import { ArrowLeft, Calendar, Clock, BookOpen, AlertTriangle } from "lucide-react";
 import SchemaMarkup from "@/components/seo/SchemaMarkup";
 import AdSlot from "@/components/layout/AdSlot";
+
+export const metadata: Metadata = {
+  title: "Why is My Webcam Black? Fix Webcam Black Screen Issues",
+  description: "Troubleshoot why your laptop webcam is showing a black screen during tests or Zoom video calls. Step-by-step repair guides for Windows and Mac.",
+  alternates: {
+    canonical: "https://cammictest.com/blog/why-is-my-webcam-black",
+  },
+  openGraph: {
+    title: "Why is My Webcam Black? Fix Webcam Black Screen Issues",
+    description: "Learn why your laptop camera shows a blank black screen. Fix camera driver, browser block, and hardware slider problems on macOS and Windows.",
+    url: "https://cammictest.com/blog/why-is-my-webcam-black",
+  }
+};
+
 
 export default function WebcamBlackScreenArticle() {
   const articleSchema = {
