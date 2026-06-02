@@ -47,8 +47,18 @@ export default function BrowserPermissionsArticle() {
         </div>
       </section>
 
+      {/* Article Image Banner */}
+      <div className="w-full aspect-[21/9] bg-neutral-900 overflow-hidden rounded-2xl border border-border/30">
+        <img 
+          src="/blog-enable-permissions.png" 
+          alt="Browser Permissions Check illustration" 
+          className="w-full h-full object-cover object-center" 
+        />
+      </div>
+
       {/* Main Content */}
       <article className="prose dark:prose-invert max-w-none text-xs md:text-sm text-muted-foreground leading-relaxed space-y-6">
+
         <p>
           To protect user privacy, modern browsers require explicit user permission before any website can access a webcam or microphone stream. If you accidentally block this prompt, the site will not be able to test your hardware.
         </p>

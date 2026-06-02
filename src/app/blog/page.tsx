@@ -12,6 +12,7 @@ interface ArticlePreview {
   readTime: string;
   category: string;
   color: string;
+  imageUrl: string;
 }
 
 const ARTICLES: ArticlePreview[] = [
@@ -23,6 +24,7 @@ const ARTICLES: ArticlePreview[] = [
     readTime: "5 min read",
     category: "Webcam Help",
     color: "bg-indigo-500/10 text-indigo-500",
+    imageUrl: "/blog-webcam-black.png",
   },
   {
     slug: "how-to-enable-camera-mic",
@@ -32,6 +34,7 @@ const ARTICLES: ArticlePreview[] = [
     readTime: "6 min read",
     category: "Browser Settings",
     color: "bg-emerald-500/10 text-emerald-500",
+    imageUrl: "/blog-enable-permissions.png",
   }
 ];
 
@@ -64,8 +67,16 @@ export default function BlogPage() {
             key={article.slug}
             className="flex flex-col bg-card border border-border/45 rounded-3xl overflow-hidden hover:shadow-lg transition-all duration-350 hover:-translate-y-1"
           >
+            <div className="w-full aspect-video bg-neutral-900 overflow-hidden border-b border-border/20">
+              <img 
+                src={article.imageUrl} 
+                alt={article.title} 
+                className="w-full h-full object-cover object-center transition-transform duration-500 hover:scale-105" 
+              />
+            </div>
             <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
               <div className="space-y-3">
+
                 <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold ${article.color}`}>
                   {article.category}
                 </span>

@@ -22,6 +22,7 @@ export default function Header() {
     { href: "/speaker-test", label: "Audio" },
     { href: "/speed-test", label: "Speed Test" },
     { href: "/device-check", label: "Diagnostics" },
+    { href: "/blog", label: "Blog" },
   ];
 
   return (

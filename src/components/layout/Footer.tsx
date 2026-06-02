@@ -79,7 +79,7 @@ export default function Footer() {
               </li>
               <li>
                 <Link href="/blog" className="text-[12px] text-muted-foreground hover:text-foreground transition-colors">
-                  Diagnostics blog
+                  Blog
                 </Link>
               </li>
               <li>

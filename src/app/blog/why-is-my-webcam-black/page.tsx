@@ -47,8 +47,18 @@ export default function WebcamBlackScreenArticle() {
         </div>
       </section>
 
+      {/* Article Image Banner */}
+      <div className="w-full aspect-[21/9] bg-neutral-900 overflow-hidden rounded-2xl border border-border/30">
+        <img 
+          src="/blog-webcam-black.png" 
+          alt="Webcam Black Screen Diagnostics illustration" 
+          className="w-full h-full object-cover object-center" 
+        />
+      </div>
+
       {/* Main Content */}
       <article className="prose dark:prose-invert max-w-none text-xs md:text-sm text-muted-foreground leading-relaxed space-y-6">
+
         <p>
           Few things are more frustrating than joining a crucial video meeting or starting an online webcam test, only to be greeted by a blank, pitch-black screen. Your camera indicator light might be glowing green, but your feed is nowhere to be seen.
         </p>
