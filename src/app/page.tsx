@@ -34,6 +34,80 @@ export default function HomePage() {
   // Live microphone hook for the hero widget
   const mic = useMicrophone();
   const [selectedMicId, setSelectedMicId] = useState("");
+  const [articles, setArticles] = useState<any[]>([
+    {
+      slug: "why-is-my-webcam-black",
+      title: "Why is My Webcam Black? How to Fix Camera Black Screen Issues",
+      excerpt: "Learn the common reasons why webcams show a black screen and get step-by-step diagnostic guides.",
+      category: "Webcam Help",
+      color: "bg-indigo-500/10 text-indigo-500",
+      imageUrl: "/blog-webcam-black.png"
+    },
+    {
+      slug: "how-to-enable-camera-mic",
+      title: "How to Enable Camera & Microphone Permissions in Major Browsers",
+      excerpt: "A step-by-step guide to unblocking and enabling camera and microphone permission prompts.",
+      category: "Browser Settings",
+      color: "bg-emerald-500/10 text-emerald-500",
+      imageUrl: "/blog-enable-permissions.png"
+    }
+  ]);
+
+  useEffect(() => {
+    const fetchBlogs = async () => {
+      try {
+        const res = await fetch("/api/blog");
+        if (res.ok) {
+          const dbBlogs = await res.json();
+          const staticArticles = [
+            {
+              slug: "why-is-my-webcam-black",
+              title: "Why is My Webcam Black? How to Fix Camera Black Screen Issues",
+              excerpt: "Learn the common reasons why webcams show a black screen and get step-by-step diagnostic guides.",
+              date: "June 02, 2026",
+              category: "Webcam Help",
+              color: "bg-indigo-500/10 text-indigo-500",
+              imageUrl: "/blog-webcam-black.png"
+            },
+            {
+              slug: "how-to-enable-camera-mic",
+              title: "How to Enable Camera & Microphone Permissions in Major Browsers",
+              excerpt: "A step-by-step guide to unblocking and enabling camera and microphone permission prompts.",
+              date: "May 25, 2026",
+              category: "Browser Settings",
+              color: "bg-emerald-500/10 text-emerald-500",
+              imageUrl: "/blog-enable-permissions.png"
+            }
+          ];
+
+          const formattedDb = dbBlogs.map((b: any) => ({
+            slug: b.slug,
+            title: b.title,
+            excerpt: b.excerpt,
+            category: b.category,
+            color: b.color,
+            imageUrl: b.imageUrl,
+            createdAt: b.publishedAt
+          }));
+
+          const formattedStatic = staticArticles.map((s) => ({
+            ...s,
+            createdAt: new Date(s.date).toISOString()
+          }));
+
+          const merged = [...formattedDb, ...formattedStatic].sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+
+          setArticles(merged.slice(0, 2));
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    fetchBlogs();
+  }, []);
+
 
   const handleMicStart = () => {
     mic.start(selectedMicId || undefined);
@@ -510,69 +584,41 @@ export default function HomePage() {
         </div>
 
         <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
-          {/* Card 1 */}
-          <div className="border border-border rounded-xl bg-card overflow-hidden hover-apple-lift transition-apple-spring flex flex-col">
-            <div className="w-full aspect-video bg-neutral-900 overflow-hidden border-b border-border/20">
-              <img 
-                src="/blog-webcam-black.png" 
-                alt="Webcam Black Screen Fix" 
-                className="w-full h-full object-cover object-center transition-transform duration-500 hover:scale-105" 
-              />
-            </div>
-            <div className="p-5 flex-1 flex flex-col justify-between space-y-3">
-              <div className="space-y-2">
-                <span className="inline-flex bg-indigo-500/10 text-indigo-500 text-[9px] font-bold px-2 py-0.5 rounded-full font-mono">
-                  Webcam Help
-                </span>
-                <h3 className="text-xs font-bold text-foreground hover:text-[#0071E3] transition-colors line-clamp-2">
-                  <Link href="/blog/why-is-my-webcam-black">
-                    Why is My Webcam Black? How to Fix Camera Black Screen Issues
-                  </Link>
-                </h3>
-                <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">
-                  Learn the common reasons why webcams show a black screen and get step-by-step diagnostic guides.
-                </p>
+          {articles.map((article) => (
+            <div 
+              key={article.slug}
+              className="border border-border rounded-xl bg-card overflow-hidden hover-apple-lift transition-apple-spring flex flex-col"
+            >
+              <div className="w-full aspect-video bg-neutral-900 overflow-hidden border-b border-border/20">
+                <img 
+                  src={article.imageUrl} 
+                  alt={article.title} 
+                  className="w-full h-full object-cover object-center transition-transform duration-500 hover:scale-105" 
+                />
               </div>
-              <Link 
-                href="/blog/why-is-my-webcam-black" 
-                className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0071E3] hover:underline mt-2 self-start"
-              >
-                Read Guide <ArrowRight className="w-3 h-3" />
-              </Link>
-            </div>
-          </div>
-
-          {/* Card 2 */}
-          <div className="border border-border rounded-xl bg-card overflow-hidden hover-apple-lift transition-apple-spring flex flex-col">
-            <div className="w-full aspect-video bg-neutral-900 overflow-hidden border-b border-border/20">
-              <img 
-                src="/blog-enable-permissions.png" 
-                alt="Enable Camera Mic Permissions" 
-                className="w-full h-full object-cover object-center transition-transform duration-500 hover:scale-105" 
-              />
-            </div>
-            <div className="p-5 flex-1 flex flex-col justify-between space-y-3">
-              <div className="space-y-2">
-                <span className="inline-flex bg-emerald-500/10 text-emerald-500 text-[9px] font-bold px-2 py-0.5 rounded-full font-mono">
-                  Browser Settings
-                </span>
-                <h3 className="text-xs font-bold text-foreground hover:text-[#0071E3] transition-colors line-clamp-2">
-                  <Link href="/blog/how-to-enable-camera-mic">
-                    How to Enable Camera & Microphone Permissions in Major Browsers
-                  </Link>
-                </h3>
-                <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">
-                  A step-by-step guide to unblocking and enabling camera and microphone permission prompts.
-                </p>
+              <div className="p-5 flex-1 flex flex-col justify-between space-y-3">
+                <div className="space-y-2">
+                  <span className={`inline-flex text-[9px] font-bold px-2 py-0.5 rounded-full font-mono ${article.color || "bg-indigo-500/10 text-indigo-500"}`}>
+                    {article.category}
+                  </span>
+                  <h3 className="text-xs font-bold text-foreground hover:text-[#0071E3] transition-colors line-clamp-2">
+                    <Link href={`/blog/${article.slug}`}>
+                      {article.title}
+                    </Link>
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">
+                    {article.excerpt}
+                  </p>
+                </div>
+                <Link 
+                  href={`/blog/${article.slug}`} 
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0071E3] hover:underline mt-2 self-start"
+                >
+                  Read Guide <ArrowRight className="w-3 h-3" />
+                </Link>
               </div>
-              <Link 
-                href="/blog/how-to-enable-camera-mic" 
-                className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0071E3] hover:underline mt-2 self-start"
-              >
-                Read Guide <ArrowRight className="w-3 h-3" />
-              </Link>
             </div>
-          </div>
+          ))}
         </div>
       </section>
 

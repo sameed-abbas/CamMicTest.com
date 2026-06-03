@@ -44,3 +44,6 @@ next-env.d.ts
 /dev-output.log
 /*.log
 
+# database & debug logs
+/data/
+

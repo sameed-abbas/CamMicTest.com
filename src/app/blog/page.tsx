@@ -53,7 +53,43 @@ const ARTICLES: ArticlePreview[] = [
   }
 ];
 
-export default function BlogPage() {
+import { readDb } from "@/lib/db";
+
+export default async function BlogPage() {
+  let dbBlogs: any[] = [];
+  try {
+    const db = await readDb();
+    const now = new Date();
+    dbBlogs = db.blogs
+      .filter((b) => b.status === "published" || (b.status === "scheduled" && new Date(b.publishedAt) <= now))
+      .map((b) => ({
+        slug: b.slug,
+        title: b.title,
+        excerpt: b.excerpt,
+        date: new Date(b.publishedAt).toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "long",
+          day: "numeric"
+        }),
+        readTime: b.readTime,
+        category: b.category,
+        color: b.color,
+        imageUrl: b.imageUrl,
+        createdAt: b.publishedAt
+      }));
+  } catch (e) {
+    console.error("Failed to read database blogs on blog page:", e);
+  }
+
+  const staticArticles = ARTICLES.map((a) => ({
+    ...a,
+    createdAt: new Date(a.date).toISOString()
+  }));
+
+  const allArticles = [...dbBlogs, ...staticArticles].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+
   return (
     <div className="space-y-10 max-w-4xl mx-auto">
       <SchemaMarkup
@@ -77,7 +113,7 @@ export default function BlogPage() {
 
       {/* Grid of Articles */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-        {ARTICLES.map((article) => (
+        {allArticles.map((article) => (
           <article 
             key={article.slug}
             className="flex flex-col bg-card border border-border/45 rounded-3xl overflow-hidden hover:shadow-lg transition-all duration-350 hover:-translate-y-1"
@@ -91,7 +127,6 @@ export default function BlogPage() {
             </div>
             <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
               <div className="space-y-3">
-
                 <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold ${article.color}`}>
                   {article.category}
                 </span>
