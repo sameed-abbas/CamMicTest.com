@@ -20,11 +20,31 @@ import {
   Layers,
   Globe,
   Monitor,
-  Check
+  Check,
+  Settings,
+  User,
+  Smartphone,
+  KeyRound,
+  History,
+  AlertCircle
 } from "lucide-react";
 
 // Tab types
-type Tab = "analytics" | "heatmap" | "blogs" | "security";
+type Tab = "analytics" | "heatmap" | "blogs" | "security" | "settings";
+
+function getPasswordStrength(pwd: string) {
+  if (!pwd) return { score: 0, label: "Enter password", color: "bg-neutral-800" };
+  let score = 0;
+  if (pwd.length >= 8) score += 1;
+  if (/[A-Z]/.test(pwd)) score += 1;
+  if (/[0-9]/.test(pwd)) score += 1;
+  if (/[^A-Za-z0-9]/.test(pwd)) score += 1;
+  if (pwd.length >= 12) score += 1;
+
+  if (score <= 1) return { score, label: "Weak", color: "bg-destructive" };
+  if (score <= 3) return { score, label: "Medium", color: "bg-amber-500" };
+  return { score, label: "Strong", color: "bg-success" };
+}
 
 export default function AdminDashboardPage() {
   // Auth state
@@ -42,6 +62,26 @@ export default function AdminDashboardPage() {
   const [blogsList, setBlogsList] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>("analytics");
   const [loadingDashboard, setLoadingDashboard] = useState(false);
+
+  // Settings States
+  const [profileName, setProfileName] = useState("");
+  const [profileEmail, setProfileEmail] = useState("");
+  const [profilePhoto, setProfilePhoto] = useState("");
+  const [profilePhotoInput, setProfilePhotoInput] = useState("");
+  const [emailVerified, setEmailVerified] = useState(true);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [activeSessions, setActiveSessions] = useState<any[]>([]);
+  const [loginHistory, setLoginHistory] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [securityAlerts, setSecurityAlerts] = useState<any[]>([]);
+  
+  // Settings Status Indicators
+  const [settingsSuccess, setSettingsSuccess] = useState("");
+  const [settingsError, setSettingsError] = useState("");
+  const [settingsLoading, setSettingsLoading] = useState(false);
 
   // Heatmap Selection
   const [heatmapUrl, setHeatmapUrl] = useState("/");
@@ -79,6 +119,28 @@ export default function AdminDashboardPage() {
     checkSession();
   }, []);
 
+  // Fetch settings data from API
+  const loadSettingsData = async () => {
+    try {
+      const res = await fetch("/api/admin/settings");
+      if (res.ok) {
+        const data = await res.json();
+        setProfileName(data.admin.name || "");
+        setProfileEmail(data.admin.username || "");
+        setProfilePhoto(data.admin.profilePhoto || "");
+        setProfilePhotoInput(data.admin.profilePhoto || "");
+        setEmailVerified(data.admin.emailVerified !== false);
+        setTwoFactorEnabled(data.admin.twoFactorEnabled === true);
+        setActiveSessions(data.activeSessions || []);
+        setLoginHistory(data.loginHistory || []);
+        setAuditLogs(data.auditLogs || []);
+        setSecurityAlerts(data.securityAlerts || []);
+      }
+    } catch (e) {
+      console.error("Failed to load settings telemetry:", e);
+    }
+  };
+
   // Fetch Dashboard Stats and blogs
   const loadDashboardData = async () => {
     setLoadingDashboard(true);
@@ -96,13 +158,199 @@ export default function AdminDashboardPage() {
         const analytics = await analyticsRes.json();
         setAnalyticsData(analytics);
       }
+
+      // 3. Fetch settings and logs
+      await loadSettingsData();
     } catch (e) {
       console.error("Failed to load dashboard metrics:", e);
     } finally {
       setLoadingDashboard(false);
     }
   };
+  // Settings: Save profile edits
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSettingsError("");
+    setSettingsSuccess("");
+    setSettingsLoading(true);
 
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_profile",
+          name: profileName,
+          username: profileEmail,
+          profilePhoto: profilePhotoInput
+        })
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setSettingsSuccess("Profile settings updated successfully!");
+        setProfilePhoto(profilePhotoInput);
+        await loadSettingsData(); // refresh settings logs
+      } else {
+        setSettingsError(data.error || "Failed to update profile settings.");
+      }
+    } catch (err) {
+      setSettingsError("Connection error saving profile changes.");
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  // Settings: Change account password
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSettingsError("");
+    setSettingsSuccess("");
+
+    if (newPassword !== confirmPassword) {
+      setSettingsError("New passwords do not match.");
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setSettingsError("New password must be at least 8 characters.");
+      return;
+    }
+
+    setSettingsLoading(true);
+
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "change_password",
+          oldPassword,
+          newPassword
+        })
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setSettingsSuccess("Password updated successfully! Other sessions revoked.");
+        setOldPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+        await loadSettingsData(); // refresh active sessions lists
+      } else {
+        setSettingsError(data.error || "Failed to update password.");
+      }
+    } catch (err) {
+      setSettingsError("Connection error updating password.");
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  // Settings: Deactivate 2FA setup
+  const handleDeactivate2FA = async () => {
+    const passwordConfirm = prompt("Please confirm your password to deactivate Google Authenticator 2FA:");
+    if (!passwordConfirm) return;
+
+    setSettingsError("");
+    setSettingsSuccess("");
+    setSettingsLoading(true);
+
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "reset_2fa",
+          password: passwordConfirm
+        })
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setSettingsSuccess("2FA has been successfully deactivated.");
+        setTwoFactorEnabled(false);
+        await loadSettingsData(); // refresh
+      } else {
+        setSettingsError(data.error || "Failed to deactivate 2FA.");
+      }
+    } catch (err) {
+      setSettingsError("Connection error resetting 2FA config.");
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  // Settings: Revoke single device session
+  const handleRevokeSession = async (tokenHash: string) => {
+    if (!confirm("Are you sure you want to end this login session?")) return;
+
+    setSettingsError("");
+    setSettingsSuccess("");
+
+    try {
+      const res = await fetch(`/api/admin/settings?tokenHash=${tokenHash}`, {
+        method: "DELETE"
+      });
+
+      if (res.ok) {
+        setSettingsSuccess("Device session revoked successfully.");
+        await loadSettingsData(); // refresh list
+      } else {
+        const data = await res.json();
+        setSettingsError(data.error || "Failed to revoke session.");
+      }
+    } catch (err) {
+      setSettingsError("Connection error revoking device session.");
+    }
+  };
+
+  // Settings: Revoke all other device sessions
+  const handleRevokeAllSessions = async () => {
+    if (!confirm("Are you sure you want to log out from all other devices?")) return;
+
+    setSettingsError("");
+    setSettingsSuccess("");
+
+    try {
+      const res = await fetch("/api/admin/settings?all=true", {
+        method: "DELETE"
+      });
+
+      if (res.ok) {
+        setSettingsSuccess("All other active device sessions revoked.");
+        await loadSettingsData(); // refresh list
+      } else {
+        const data = await res.json();
+        setSettingsError(data.error || "Failed to revoke sessions.");
+      }
+    } catch (err) {
+      setSettingsError("Connection error revoking sessions.");
+    }
+  };
+
+  // Settings: Dismiss security alert warning
+  const handleDismissAlert = async (alertId: string) => {
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "dismiss_alert",
+          alertId
+        })
+      });
+
+      if (res.ok) {
+        await loadSettingsData(); // reload alerts list
+      }
+    } catch (err) {
+      console.error("Failed to dismiss security warning:", err);
+    }
+  };
   // Trigger reload on heatmapUrl changes
   useEffect(() => {
     if (authStep === "dashboard") {
@@ -573,6 +821,12 @@ export default function AdminDashboardPage() {
         >
           <span className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5" /> Security Logs</span>
         </button>
+        <button
+          onClick={() => { setActiveTab("settings"); setShowEditorForm(false); }}
+          className={`pb-2.5 border-b-2 transition-colors ${activeTab === "settings" ? "border-foreground text-foreground font-bold" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+        >
+          <span className="flex items-center gap-1.5"><Settings className="w-3.5 h-3.5" /> Settings</span>
+        </button>
       </div>
 
       {loadingDashboard && !analyticsData ? (
@@ -1025,6 +1279,411 @@ export default function AdminDashboardPage() {
                     </p>
                   </div>
                 </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* TAB 5: USER SETTINGS PANEL */}
+          {activeTab === "settings" && (
+            <div className="space-y-8 font-sans">
+              
+              {/* Alert Message Banner at Settings Level */}
+              {(settingsSuccess || settingsError) && (
+                <div className="space-y-3">
+                  {settingsSuccess && (
+                    <div className="p-4 bg-success/10 border border-success/20 text-success text-xs font-mono rounded-xl flex items-center gap-2.5 animate-apple-reveal">
+                      <Check className="w-4 h-4 shrink-0" />
+                      <span>{settingsSuccess}</span>
+                    </div>
+                  )}
+                  {settingsError && (
+                    <div className="p-4 bg-destructive/10 border border-destructive/20 text-destructive text-xs font-mono rounded-xl flex items-center gap-2.5 animate-apple-reveal">
+                      <AlertTriangle className="w-4 h-4 shrink-0" />
+                      <span>{settingsError}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Security alerts check banner for suspicious attempts */}
+              {securityAlerts.length > 0 && (
+                <div className="space-y-3">
+                  <div className="font-mono text-[9px] uppercase tracking-widest font-bold text-destructive flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 text-destructive" /> Suspicious Activity Warnings ({securityAlerts.length})
+                  </div>
+                  <div className="grid grid-cols-1 gap-3">
+                    {securityAlerts.map((alert) => (
+                      <div key={alert.id} className="p-4 border border-destructive/20 bg-destructive/5 rounded-xl flex items-start justify-between gap-4 animate-pulse">
+                        <div className="space-y-1">
+                          <p className="text-xs font-semibold text-foreground">{alert.message}</p>
+                          <div className="flex flex-wrap gap-x-3 text-[10px] text-muted-foreground font-mono">
+                            <span>IP: <strong className="text-foreground">{alert.ip}</strong></span>
+                            <span>Device: <strong>{alert.device}</strong></span>
+                            <span>Time: <strong>{new Date(alert.timestamp).toLocaleString()}</strong></span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleDismissAlert(alert.id)}
+                          className="px-3 py-1 text-[9px] uppercase tracking-widest font-mono border border-border rounded bg-neutral-900 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                
+                {/* LEFT COLUMN: Profile & Credentials Update Form */}
+                <div className="space-y-8">
+                  
+                  {/* Account Profile Box */}
+                  <div className="p-6 border border-border rounded-xl bg-card space-y-6">
+                    <div className="border-b border-border/40 pb-4">
+                      <h3 className="text-xs font-bold font-mono uppercase tracking-widest text-foreground flex items-center gap-1.5">
+                        <User className="w-4 h-4 text-[#0071E3]" /> Profile Account Settings
+                      </h3>
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        Update your administrator profile details and avatar.
+                      </p>
+                    </div>
+
+                    <form onSubmit={handleSaveProfile} className="space-y-4">
+                      
+                      {/* Avatar preview and update */}
+                      <div className="flex items-center gap-4 p-4 border border-border/60 rounded-xl bg-neutral-500/5">
+                        <div className="relative w-12 h-12 rounded-full overflow-hidden border border-border bg-neutral-950 flex items-center justify-center shrink-0">
+                          {profilePhoto ? (
+                            <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" />
+                          ) : (
+                            <User className="w-6 h-6 text-muted-foreground" />
+                          )}
+                        </div>
+                        <div className="space-y-1 flex-1">
+                          <label className="text-[10px] font-mono uppercase tracking-wider font-bold text-muted-foreground block">
+                            Profile Photo URL
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="/logo-white.png"
+                            value={profilePhotoInput}
+                            onChange={(e) => setProfilePhotoInput(e.target.value)}
+                            className="w-full bg-transparent border border-border px-3 py-1.5 rounded text-xs text-foreground focus:outline-none focus:border-foreground"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-mono uppercase tracking-wider font-bold text-muted-foreground block">
+                          Full Name
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={profileName}
+                          onChange={(e) => setProfileName(e.target.value)}
+                          className="w-full bg-transparent border border-border px-3.5 py-2.5 rounded text-xs text-foreground focus:outline-none focus:border-foreground"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] font-mono uppercase tracking-wider font-bold text-muted-foreground block">
+                            Email Address (Admin ID)
+                          </label>
+                          <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase ${
+                            emailVerified ? "badge-success-premium" : "badge-warning-premium"
+                          }`}>
+                            {emailVerified ? <CheckCircle className="w-2.5 h-2.5 shrink-0" /> : <AlertTriangle className="w-2.5 h-2.5 shrink-0" />}
+                            {emailVerified ? "Verified" : "Unverified"}
+                          </span>
+                        </div>
+                        <input
+                          type="email"
+                          required
+                          value={profileEmail}
+                          onChange={(e) => setProfileEmail(e.target.value)}
+                          className="w-full bg-transparent border border-border px-3.5 py-2.5 rounded text-xs text-foreground focus:outline-none focus:border-foreground"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={settingsLoading}
+                        className="w-full border border-foreground bg-foreground text-background text-[10px] font-semibold uppercase tracking-wider py-3 rounded hover:bg-transparent hover:text-foreground transition-apple-spring"
+                      >
+                        {settingsLoading ? "Saving Changes..." : "Save Profile Details"}
+                      </button>
+
+                    </form>
+                  </div>
+
+                  {/* Security Credentials Password Box */}
+                  <div className="p-6 border border-border rounded-xl bg-card space-y-6">
+                    <div className="border-b border-border/40 pb-4">
+                      <h3 className="text-xs font-bold font-mono uppercase tracking-widest text-foreground flex items-center gap-1.5">
+                        <KeyRound className="w-4 h-4 text-[#0071E3]" /> Change Password
+                      </h3>
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        Ensure your account uses a strong password. Changing your password logs you out from all other devices.
+                      </p>
+                    </div>
+
+                    <form onSubmit={handleChangePassword} className="space-y-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-mono uppercase tracking-wider font-bold text-muted-foreground block">
+                          Current Security Password
+                        </label>
+                        <input
+                          type="password"
+                          required
+                          placeholder="••••••••••••"
+                          value={oldPassword}
+                          onChange={(e) => setOldPassword(e.target.value)}
+                          className="w-full bg-transparent border border-border px-3.5 py-2.5 rounded text-xs text-foreground focus:outline-none focus:border-foreground"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-mono uppercase tracking-wider font-bold text-muted-foreground block">
+                          New Security Password
+                        </label>
+                        <input
+                          type="password"
+                          required
+                          placeholder="••••••••••••"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          className="w-full bg-transparent border border-border px-3.5 py-2.5 rounded text-xs text-foreground focus:outline-none focus:border-foreground"
+                        />
+                        
+                        {/* Interactive Password Strength Indicator */}
+                        {newPassword && (
+                          <div className="space-y-1.5 animate-apple-reveal">
+                            <div className="flex justify-between items-center text-[10px] font-mono">
+                              <span className="text-muted-foreground">Password Strength:</span>
+                              <span className={
+                                getPasswordStrength(newPassword).label === "Strong" ? "text-success font-bold" :
+                                getPasswordStrength(newPassword).label === "Medium" ? "text-warning font-bold" : "text-destructive font-bold"
+                              }>
+                                {getPasswordStrength(newPassword).label}
+                              </span>
+                            </div>
+                            <div className="h-1.5 w-full bg-neutral-900 rounded-full overflow-hidden flex gap-0.5">
+                              <div className={`h-full flex-1 transition-all duration-300 ${
+                                getPasswordStrength(newPassword).score >= 1 ? getPasswordStrength(newPassword).color : "bg-neutral-800"
+                              }`} />
+                              <div className={`h-full flex-1 transition-all duration-300 ${
+                                getPasswordStrength(newPassword).score >= 3 ? getPasswordStrength(newPassword).color : "bg-neutral-800"
+                              }`} />
+                              <div className={`h-full flex-1 transition-all duration-300 ${
+                                getPasswordStrength(newPassword).score >= 5 ? getPasswordStrength(newPassword).color : "bg-neutral-800"
+                              }`} />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-mono uppercase tracking-wider font-bold text-muted-foreground block">
+                          Confirm New Password
+                        </label>
+                        <input
+                          type="password"
+                          required
+                          placeholder="••••••••••••"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          className="w-full bg-transparent border border-border px-3.5 py-2.5 rounded text-xs text-foreground focus:outline-none focus:border-foreground"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={settingsLoading}
+                        className="w-full border border-foreground bg-foreground text-background text-[10px] font-semibold uppercase tracking-wider py-3 rounded hover:bg-transparent hover:text-foreground transition-apple-spring"
+                      >
+                        {settingsLoading ? "Saving..." : "Change Account Password"}
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Multi-Factor Authentication Control Box */}
+                  <div className="p-6 border border-border rounded-xl bg-card space-y-6">
+                    <div className="border-b border-border/40 pb-4">
+                      <h3 className="text-xs font-bold font-mono uppercase tracking-widest text-foreground flex items-center gap-1.5">
+                        <Lock className="w-4 h-4 text-[#0071E3]" /> Multi-Factor Authentication (2FA)
+                      </h3>
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        Your account requires Google Authenticator (TOTP) codes to authorize login actions.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between p-4 border border-border rounded-xl bg-neutral-500/5">
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-mono uppercase tracking-wider font-bold text-muted-foreground block">
+                          2FA Authentication Status
+                        </span>
+                        <p className="text-xs font-bold text-foreground">
+                          {twoFactorEnabled ? "🔐 Google App Authenticator Active" : "🔓 Setup Incomplete"}
+                        </p>
+                      </div>
+                      {twoFactorEnabled ? (
+                        <button
+                          type="button"
+                          onClick={handleDeactivate2FA}
+                          disabled={settingsLoading}
+                          className="px-4 py-2 border border-destructive/20 bg-destructive/10 text-destructive text-[10px] font-mono uppercase tracking-widest rounded hover:bg-destructive hover:text-white transition-colors"
+                        >
+                          Deactivate
+                        </button>
+                      ) : (
+                        <span className="px-3 py-1 text-[9px] uppercase tracking-widest font-mono border border-border rounded bg-neutral-900 text-muted-foreground">
+                          Required on Login
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* RIGHT COLUMN: Active Sessions, Login History & Audit Trails */}
+                <div className="space-y-8">
+                  
+                  {/* Active Sessions List */}
+                  <div className="p-6 border border-border rounded-xl bg-card space-y-6">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-border/40 pb-4">
+                      <div>
+                        <h3 className="text-xs font-bold font-mono uppercase tracking-widest text-foreground flex items-center gap-1.5">
+                          <Smartphone className="w-4 h-4 text-[#0071E3]" /> Active Logged-in Sessions
+                        </h3>
+                        <p className="text-[11px] text-muted-foreground mt-1">
+                          Connected devices currently authorized in this admin workspace.
+                        </p>
+                      </div>
+                      {activeSessions.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={handleRevokeAllSessions}
+                          className="px-3 py-1.5 text-[9px] font-mono uppercase tracking-wider text-destructive border border-destructive/20 hover:bg-destructive/10 transition-colors rounded"
+                        >
+                          Revoke Others
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="space-y-3 font-mono text-[11px]">
+                      {activeSessions.map((session) => (
+                        <div key={session.tokenHash} className="p-4 border border-border/60 rounded-xl flex items-start justify-between gap-4 bg-neutral-500/5">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-foreground font-semibold flex items-center gap-1">
+                                <Monitor className="w-3.5 h-3.5 text-muted-foreground" /> {session.device}
+                              </span>
+                              {session.isCurrent && (
+                                <span className="inline-flex px-1.5 py-0.5 rounded bg-success/15 text-success text-[8px] font-bold uppercase tracking-widest">
+                                  Current Device
+                                </span>
+                              )}
+                            </div>
+                            <div className="space-y-0.5 text-muted-foreground text-[10px]">
+                              <p>IP: <strong className="text-foreground">{session.ip}</strong> • Browser: <strong>{session.browser}</strong></p>
+                              <p>Session started: {new Date(session.createdAt).toLocaleString()}</p>
+                            </div>
+                          </div>
+                          {!session.isCurrent && (
+                            <button
+                              type="button"
+                              onClick={() => handleRevokeSession(session.tokenHash)}
+                              className="p-1 border border-border/80 rounded hover:border-destructive hover:text-destructive transition-colors text-muted-foreground"
+                              title="Revoke session key"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Personal Activity & Audit Log */}
+                  <div className="p-6 border border-border rounded-xl bg-card space-y-6">
+                    <div className="border-b border-border/40 pb-4">
+                      <h3 className="text-xs font-bold font-mono uppercase tracking-widest text-foreground flex items-center gap-1.5">
+                        <History className="w-4 h-4 text-[#0071E3]" /> Audit Trail & Admin Actions
+                      </h3>
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        Recent activities and administrative tasks performed on this workspace.
+                      </p>
+                    </div>
+
+                    <div className="max-h-[300px] overflow-y-auto pr-1 space-y-3 font-mono text-[10px] divide-y divide-border/20">
+                      {auditLogs.length > 0 ? (
+                        auditLogs.map((log, index) => (
+                          <div key={log.id} className={`pt-3 ${index === 0 ? "pt-0 border-t-0" : ""}`}>
+                            <div className="flex items-start justify-between gap-4">
+                              <span className="text-foreground font-semibold flex items-center gap-1">
+                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                  log.action.includes("disable") || log.action.includes("revoke") ? "bg-destructive" :
+                                  log.action.includes("enable") || log.action.includes("login") ? "bg-success" : "bg-primary"
+                                }`} />
+                                {log.action.toUpperCase()}
+                              </span>
+                              <span className="text-muted-foreground shrink-0">{new Date(log.timestamp).toLocaleDateString()} {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                            <p className="text-muted-foreground mt-1 leading-normal">{log.details}</p>
+                            <div className="flex gap-3 text-[9px] text-muted-foreground/80 mt-0.5">
+                              <span>IP: <strong>{log.ip}</strong></span>
+                              <span>Device: <strong>{log.device}</strong></span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-xs text-muted-foreground text-center py-6">No audit records found in the database.</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Access Login History */}
+                  <div className="p-6 border border-border rounded-xl bg-card space-y-6">
+                    <div className="border-b border-border/40 pb-4">
+                      <h3 className="text-xs font-bold font-mono uppercase tracking-widest text-foreground flex items-center gap-1.5">
+                        <History className="w-4 h-4 text-[#0071E3]" /> Access & Login History
+                      </h3>
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        History of verified, pending, and rejected entry attempts to this administrative control room.
+                      </p>
+                    </div>
+
+                    <div className="max-h-[220px] overflow-y-auto pr-1 space-y-3 font-mono text-[10px] divide-y divide-border/20">
+                      {loginHistory.map((history, index) => (
+                        <div key={history.id} className={`pt-3 ${index === 0 ? "pt-0 border-t-0" : ""}`}>
+                          <div className="flex items-start justify-between gap-4">
+                            <span className="text-foreground">
+                              User: <strong>{history.username}</strong>
+                            </span>
+                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest font-mono ${
+                              history.status === "success" ? "bg-success/15 text-success" :
+                              history.status === "otp_pending" ? "bg-amber-500/15 text-amber-500" : "bg-destructive/15 text-destructive"
+                            }`}>
+                              {history.status.replace("_", " ")}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-muted-foreground mt-1">
+                            <span>IP: <strong className="text-foreground">{history.ip}</strong></span>
+                            <span>Browser: <strong>{history.browser}</strong></span>
+                            <span className="text-[9px]">{new Date(history.timestamp).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                </div>
+
               </div>
 
             </div>
