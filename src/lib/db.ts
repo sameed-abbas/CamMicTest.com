@@ -47,8 +47,8 @@ export interface Session {
 export interface AdminUser {
   username: string;
   passwordHash: string;
-  otpCode?: string;
-  otpExpiresAt?: string;
+  twoFactorSecret?: string;
+  twoFactorEnabled?: boolean;
 }
 
 export interface DbSchema {

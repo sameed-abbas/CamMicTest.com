@@ -31,7 +31,9 @@ export default function AdminDashboardPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [otpCode, setOtpCode] = useState("");
-  const [authStep, setAuthStep] = useState<"login" | "otp" | "dashboard">("login");
+  const [authStep, setAuthStep] = useState<"login" | "setup" | "otp" | "dashboard">("login");
+  const [qrCode, setQrCode] = useState("");
+  const [secretKey, setSecretKey] = useState("");
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
 
@@ -166,8 +168,16 @@ export default function AdminDashboardPage() {
 
       const data = await res.json();
 
-      if (res.ok && data.step === "otp") {
-        setAuthStep("otp");
+      if (res.ok) {
+        if (data.step === "otp") {
+          setAuthStep("otp");
+        } else if (data.step === "setup") {
+          setQrCode(data.qrCode);
+          setSecretKey(data.secret);
+          setAuthStep("setup");
+        } else {
+          setAuthError("Unsupported authentication step");
+        }
       } else {
         setAuthError(data.error || "Authentication failed");
       }
@@ -349,12 +359,18 @@ export default function AdminDashboardPage() {
           <div className="space-y-2 text-center">
             <Lock className="w-8 h-8 text-[#0071E3] mx-auto mb-2" />
             <h1 className="text-xl font-bold tracking-tight text-foreground">
-              {authStep === "login" ? "Security Control Login" : "Two-Factor Verification"}
+              {authStep === "login" 
+                ? "Security Control Login" 
+                : authStep === "setup" 
+                ? "Two-Factor Setup" 
+                : "Two-Factor Verification"}
             </h1>
             <p className="text-xs text-muted-foreground">
               {authStep === "login"
                 ? "Enter credentials to access the CamMicTest administrative suite."
-                : "Enter the 6-digit verification code sent to your administrator email."}
+                : authStep === "setup"
+                ? "Scan the QR code with Google Authenticator or another TOTP app, then enter the code to enable."
+                : "Enter the 6-digit verification code from your Google Authenticator app."}
             </p>
           </div>
 
@@ -403,6 +419,61 @@ export default function AdminDashboardPage() {
                 {authLoading ? "Authenticating..." : "Login"}
               </button>
             </form>
+          ) : authStep === "setup" ? (
+            <div className="space-y-5 text-center">
+              {/* High contrast QR code container for dark-theme environments */}
+              <div className="bg-white p-3 rounded-2xl inline-block border border-neutral-200 mx-auto select-none">
+                <img 
+                  src={qrCode} 
+                  alt="Google Authenticator QR Code" 
+                  className="w-44 h-44 block" 
+                  draggable={false}
+                />
+              </div>
+
+              <div className="space-y-1 text-left font-mono">
+                <span className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground block text-center">
+                  Or enter secret key manually:
+                </span>
+                <div className="bg-neutral-950 border border-neutral-800 p-2 text-[10px] text-center select-all tracking-wider text-foreground font-bold break-all leading-normal select-all">
+                  {secretKey}
+                </div>
+              </div>
+
+              <form onSubmit={handleOtpVerify} className="space-y-4 text-left">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono uppercase tracking-wider font-bold text-muted-foreground block text-center mb-1">
+                    Enter Verification Code
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    pattern="[0-9]{6}"
+                    placeholder="000000"
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value)}
+                    className="w-full bg-transparent border border-border text-center text-xl tracking-[0.4em] font-mono py-2.5 rounded text-foreground focus:outline-none focus:border-foreground"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="w-full border border-foreground bg-foreground text-background text-[10px] font-semibold uppercase tracking-wider py-3 rounded hover:bg-transparent hover:text-foreground transition-apple-spring"
+                >
+                  {authLoading ? "Verifying..." : "Enable 2FA & Login"}
+                </button>
+              </form>
+
+              <button
+                type="button"
+                onClick={() => setAuthStep("login")}
+                className="w-full text-center text-[10px] text-muted-foreground hover:text-foreground uppercase tracking-widest font-mono pt-2 block"
+              >
+                Back to Login
+              </button>
+            </div>
           ) : (
             <form onSubmit={handleOtpVerify} className="space-y-4">
               <div className="space-y-1">
@@ -432,7 +503,7 @@ export default function AdminDashboardPage() {
               <button
                 type="button"
                 onClick={() => setAuthStep("login")}
-                className="w-full text-center text-[10px] text-muted-foreground hover:text-foreground uppercase tracking-widest font-mono pt-2"
+                className="w-full text-center text-[10px] text-muted-foreground hover:text-foreground uppercase tracking-widest font-mono pt-2 block"
               >
                 Back to Login
               </button>
@@ -936,8 +1007,8 @@ export default function AdminDashboardPage() {
                     <span className="text-foreground">10,000 PBKDF2 sync cycles</span>
                   </div>
                   <div className="flex items-center justify-between border-b border-border/20 pb-2">
-                    <span className="text-muted-foreground">2FA Multi-Factor Delivery:</span>
-                    <span className="text-success font-bold">CONSOLE LOGGER / RESEND FALLBACK</span>
+                    <span className="text-muted-foreground">2FA Multi-Factor Authenticator:</span>
+                    <span className="text-success font-bold">OFFLINE TOTP (GOOGLE AUTHENTICATOR)</span>
                   </div>
                   <div className="flex items-center justify-between border-b border-border/20 pb-2">
                     <span className="text-muted-foreground">Session Expiration threshold:</span>

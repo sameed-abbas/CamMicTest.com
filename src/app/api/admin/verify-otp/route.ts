@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyOTPCode, establishSession } from "@/lib/auth";
+import { readDb, writeDb } from "@/lib/db";
+import { verifyTOTP } from "@/lib/totp";
+import { establishSession } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,13 +11,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Username and verification code are required" }, { status: 400 });
     }
 
-    const isValid = await verifyOTPCode(username, otp);
+    const db = await readDb();
 
-    if (!isValid) {
-      return NextResponse.json({ error: "Invalid or expired verification code" }, { status: 400 });
+    if (db.admin.username !== username) {
+      return NextResponse.json({ error: "Unauthorized access attempt" }, { status: 401 });
     }
 
-    // Establish dynamic HttpOnly session cookie
+    const secret = db.admin.twoFactorSecret;
+    if (!secret) {
+      return NextResponse.json({ error: "Two-factor authentication not initialized" }, { status: 400 });
+    }
+
+    // Verify 6-digit TOTP code with clock-skew tolerance (window = 1, i.e. checking current +/- 30s)
+    const isValid = verifyTOTP(secret, otp, 1);
+
+    if (!isValid) {
+      return NextResponse.json({ error: "Invalid verification code. Please check your authenticator app." }, { status: 400 });
+    }
+
+    // On first successful validation, mark 2FA as fully enabled and registered
+    if (!db.admin.twoFactorEnabled) {
+      db.admin.twoFactorEnabled = true;
+      await writeDb(db);
+      console.log(`🔒 [SECURITY] Two-factor authentication (TOTP) successfully enabled for user ${username}`);
+    }
+
+    // Establish secure HttpOnly cookie session
     await establishSession(username);
 
     return NextResponse.json({ success: true });
