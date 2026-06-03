@@ -11,7 +11,12 @@ function generateSecureToken(): string {
 }
 
 // Create Session and set cookie
-export async function establishSession(username: string): Promise<void> {
+export async function establishSession(
+  username: string,
+  ip?: string,
+  device?: string,
+  browser?: string
+): Promise<void> {
   const db = await readDb();
   const token = generateSecureToken();
   const expiresAt = new Date(Date.now() + SESSION_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString();
@@ -19,7 +24,11 @@ export async function establishSession(username: string): Promise<void> {
   const newSession: Session = {
     token,
     username,
-    expiresAt
+    expiresAt,
+    ip,
+    device,
+    browser,
+    createdAt: new Date().toISOString()
   };
 
   db.sessions.push(newSession);
