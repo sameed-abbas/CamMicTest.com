@@ -90,7 +90,11 @@ export default function HomePage() {
             createdAt: b.publishedAt
           }));
 
-          const formattedStatic = staticArticles.map((s) => ({
+          const uniqueStatic = staticArticles.filter(
+            (s) => !dbBlogs.some((b: any) => b.slug === s.slug)
+          );
+
+          const formattedStatic = uniqueStatic.map((s) => ({
             ...s,
             createdAt: new Date(s.date).toISOString()
           }));

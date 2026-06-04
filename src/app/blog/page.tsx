@@ -81,7 +81,11 @@ export default async function BlogPage() {
     console.error("Failed to read database blogs on blog page:", e);
   }
 
-  const staticArticles = ARTICLES.map((a) => ({
+  const uniqueStatic = ARTICLES.filter(
+    (a) => !dbBlogs.some((b: any) => b.slug === a.slug)
+  );
+
+  const staticArticles = uniqueStatic.map((a) => ({
     ...a,
     createdAt: new Date(a.date).toISOString()
   }));
