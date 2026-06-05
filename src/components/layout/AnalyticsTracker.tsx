@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 
 // Helper to determine device type from User Agent
@@ -33,14 +33,49 @@ function getBrowserName(): string {
 export default function AnalyticsTracker() {
   const pathname = usePathname();
   const clickBuffer = useRef<{ x: number; y: number; url: string; viewportWidth: number; viewportHeight: number }[]>([]);
-  const isTracking = useRef(true);
+  const hasTrackedPageView = useRef<string | null>(null);
+  const [hasConsent, setHasConsent] = useState<boolean>(false);
 
   // Disable tracking on admin routes to prevent self-analytics bloating
   const disableTracking = pathname.startsWith("/admin") || pathname.startsWith("/api");
 
-  // Track Page Views
+  // Read consent status
   useEffect(() => {
-    if (disableTracking) return;
+    const checkConsent = () => {
+      const stored = localStorage.getItem("cammictest_cookie_consent");
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setHasConsent(!!parsed.analytics);
+        } catch (e) {
+          setHasConsent(false);
+        }
+      } else {
+        setHasConsent(false);
+      }
+    };
+
+    // Initial check
+    checkConsent();
+
+    // Listen for updates
+    const handleConsentUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail) {
+        setHasConsent(!!customEvent.detail.analytics);
+      }
+    };
+
+    window.addEventListener("cookie-consent-updated", handleConsentUpdate);
+    return () => window.removeEventListener("cookie-consent-updated", handleConsentUpdate);
+  }, []);
+
+  // Track Page Views (gated by consent)
+  useEffect(() => {
+    if (disableTracking || !hasConsent) return;
+
+    // Avoid duplicate pageview logs for the same path
+    if (hasTrackedPageView.current === pathname) return;
 
     const trackPageView = async () => {
       try {
@@ -51,11 +86,12 @@ export default function AnalyticsTracker() {
           browser: getBrowserName(),
         };
 
+        hasTrackedPageView.current = pathname;
+
         await fetch("/api/admin/analytics", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ type: "pageview", payload }),
-          // Allow request to outlive the page lifecycle
           keepalive: true
         });
       } catch (e) {
@@ -64,11 +100,21 @@ export default function AnalyticsTracker() {
     };
 
     trackPageView();
-  }, [pathname, disableTracking]);
+  }, [pathname, disableTracking, hasConsent]);
 
-  // Track Clicks with a throttled buffer
+  // Reset pageview track flag on path change
   useEffect(() => {
-    if (disableTracking) return;
+    if (pathname !== hasTrackedPageView.current) {
+      hasTrackedPageView.current = null;
+    }
+  }, [pathname]);
+
+  // Track Clicks with a throttled buffer (gated by consent)
+  useEffect(() => {
+    if (disableTracking || !hasConsent) {
+      clickBuffer.current = []; // Clear buffer if disabled/consent revoked
+      return;
+    }
 
     // Send click coordinates buffer to server
     const flushClicks = async () => {
@@ -95,7 +141,8 @@ export default function AnalyticsTracker() {
 
     // Listen for mouse click coordinates (as percentage offsets of total page)
     const handleDocumentClick = (e: MouseEvent) => {
-      if (!isTracking.current) return;
+      // Double check consent state
+      if (!hasConsent) return;
 
       // Skip clicks on inputs or buttons inside interactive tools to avoid capture noise
       const target = e.target as HTMLElement;
@@ -149,7 +196,7 @@ export default function AnalyticsTracker() {
       // Final flush on unmount
       flushClicks();
     };
-  }, [pathname, disableTracking]);
+  }, [pathname, disableTracking, hasConsent]);
 
   return null;
 }

@@ -129,13 +129,21 @@ export default function Footer() {
           <p>
             &copy; {new Date().getFullYear()} cammictest.com. Processing is run locally on the client.
           </p>
-          <div className="flex gap-4">
+          <div className="flex gap-4 flex-wrap justify-center sm:justify-end">
             <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
+            <span>&middot;</span>
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent("open-cookie-settings"))}
+              className="hover:text-foreground transition-colors cursor-pointer"
+            >
+              Cookie Settings
+            </button>
             <span>&middot;</span>
             <Link href="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link>
             <span>&middot;</span>
             <Link href="/sitemap.xml" className="hover:text-foreground transition-colors">Sitemap</Link>
           </div>
+
         </div>
       </div>
     </footer>
